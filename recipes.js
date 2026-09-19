@@ -12,10 +12,16 @@
  *   style       array of "hot" | "iced" | "milk" | "dessert"
  *   minutes     rough hands-on time, for the card
  *   baseYield   finished volume in ml that the amounts below produce
+ *   caffeine    mg in one serving at baseYield
+ *   calories    kcal in one serving at baseYield
  *   name/blurb  { ar, en }
- *   ingredients [{ ar, en, amount, unit, fixed? }]
+ *   ingredients [{ ar, en, amount, unit, fixed?, mg? }]
  *               unit: "ml" | "g" | "shot" | "tsp" | "tbsp" | "pc" | "scoop"
  *               fixed: true  → never scales with cup size
+ *               mg: n        → caffeine per countable unit (shot, capsule).
+ *                              Present only where the coffee is counted in
+ *                              whole shots, so its caffeine steps with the
+ *                              shot count instead of with volume.
  *   steps       [{ ar, en, seconds? }]  seconds → renders a timer
  *   why         { ar, en }  one or two sentences on the mechanism
  *   fixes       [{ problem, cause, fix }] each { ar, en }
@@ -25,6 +31,23 @@
  *   ml              → nearest 5
  *   tsp, tbsp       → nearest 0.5
  *   g               → nearest 1
+ *
+ * Caffeine scaling: the part that comes from ingredients carrying `mg`
+ * follows the rounded shot count, so two shots becoming three jumps the
+ * figure. Whatever is left over (brewed coffee measured in g or ml) scales
+ * continuously, as calories do.
+ *
+ * Reference figures used for every record, so the arithmetic in the comments
+ * above each `caffeine` / `calories` field can be rechecked:
+ *   espresso capsule 65 mg · lungo capsule 85 mg · ristretto pull 55 mg
+ *   filter 130 mg per 15 g grounds (8.67 mg/g) · turkish 65 mg per 7 g
+ *   cold brew concentrate 100 mg/100 ml, shown after its 1:1 dilution
+ *   decaf 3 mg · water, ice, milk, syrup and spices contribute no caffeine
+ *   espresso 2 kcal/shot · filter coffee 2 kcal/100 ml · whole milk 64/100 ml
+ *   condensed milk 321/100 ml · dark chocolate 5.5/g · white chocolate 5.4/g
+ *   caramel, chocolate or vanilla sauce 1.0/ml · sugar 16/tsp · honey 64/tbsp
+ *   ice cream 140/scoop · tonic 34/100 ml · orange juice 45/100 ml
+ *   pistachio paste 6/g · spices, rose water, saffron, peel, ice, water 0
  */
 
 const RECIPES = [
@@ -37,13 +60,17 @@ const RECIPES = [
     style: ["hot"],
     minutes: 2,
     baseYield: 40,
+    // caffeine: 1 capsule x 65 mg
+    caffeine: 65,
+    // calories: espresso 40 ml = 2
+    calories: 2,
     name: { ar: "إسبريسو", en: "Espresso" },
     blurb: {
       ar: "الأساس لكل مشروب ثاني — شوت مركّز بكريما ذهبية.",
       en: "The base for everything else — a concentrated shot under golden crema."
     },
     ingredients: [
-      { ar: "كبسولة (شدّة ٨–١٢)", en: "Capsule (intensity 8–12)", amount: 1, unit: "pc" },
+      { ar: "كبسولة (شدّة ٨–١٢)", en: "Capsule (intensity 8–12)", amount: 1, unit: "pc", mg: 65 },
       { ar: "ماء (من الماكينة)", en: "Water (from the machine)", amount: 40, unit: "ml" }
     ],
     steps: [
@@ -70,13 +97,17 @@ const RECIPES = [
     style: ["hot"],
     minutes: 2,
     baseYield: 20,
+    // caffeine: 1 capsule pulled short x 55 mg
+    caffeine: 55,
+    // calories: espresso 20 ml = 1
+    calories: 1,
     name: { ar: "ريستريتو", en: "Ristretto" },
     blurb: {
       ar: "نص إسبريسو بالحجم، وضعفه بالكثافة. أحلى وأقل مرارة.",
       en: "Half the volume of an espresso, twice the density. Sweeter, less bitter."
     },
     ingredients: [
-      { ar: "كبسولة (شدّة ٩–١٢)", en: "Capsule (intensity 9–12)", amount: 1, unit: "pc" },
+      { ar: "كبسولة (شدّة ٩–١٢)", en: "Capsule (intensity 9–12)", amount: 1, unit: "pc", mg: 55 },
       { ar: "ماء", en: "Water", amount: 20, unit: "ml" }
     ],
     steps: [
@@ -100,13 +131,17 @@ const RECIPES = [
     style: ["hot"],
     minutes: 2,
     baseYield: 110,
+    // caffeine: 1 lungo capsule x 85 mg
+    caffeine: 85,
+    // calories: coffee 110 ml x 0.02 = 2
+    calories: 2,
     name: { ar: "لونغو", en: "Lungo" },
     blurb: {
       ar: "صبّة طويلة من نفس الكبسولة — أخف بالجسم وأوضح بالمرارة.",
       en: "A long pull from the same capsule — lighter bodied, more openly bitter."
     },
     ingredients: [
-      { ar: "كبسولة لونغو مخصصة", en: "Dedicated lungo capsule", amount: 1, unit: "pc" },
+      { ar: "كبسولة لونغو مخصصة", en: "Dedicated lungo capsule", amount: 1, unit: "pc", mg: 85 },
       { ar: "ماء", en: "Water", amount: 110, unit: "ml" }
     ],
     steps: [
@@ -129,13 +164,17 @@ const RECIPES = [
     style: ["hot"],
     minutes: 3,
     baseYield: 160,
+    // caffeine: 1 shot x 65 mg; water 0
+    caffeine: 65,
+    // calories: 1 shot = 2; water 0
+    calories: 2,
     name: { ar: "أمريكانو", en: "Americano" },
     blurb: {
       ar: "إسبريسو مخفّف بماء ساخن — قهوة سوداء بجسم أنظف من اللونغو.",
       en: "Espresso let down with hot water — black coffee with a cleaner body than a lungo."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "ماء ساخن ٩٠–٩٣°", en: "Hot water 90–93°C", amount: 120, unit: "ml" }
     ],
     steps: [
@@ -159,6 +198,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 3,
     baseYield: 180,
+    // caffeine: 2 shots x 65 mg; water 0
+    caffeine: 130,
+    // calories: 2 shots x 2 = 4; water 0
+    calories: 4,
     name: { ar: "لونغ بلاك", en: "Long Black" },
     blurb: {
       ar: "النسخة الأسترالية — أقوى من الأمريكانو وكريماه محفوظة.",
@@ -166,7 +209,7 @@ const RECIPES = [
     },
     ingredients: [
       { ar: "ماء ساخن ٩٠–٩٣°", en: "Hot water 90–93°C", amount: 100, unit: "ml" },
-      { ar: "شوت إسبريسو مركّز", en: "Concentrated espresso shot", amount: 2, unit: "shot" }
+      { ar: "شوت إسبريسو مركّز", en: "Concentrated espresso shot", amount: 2, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "مرّر دورة فاضية بالكوب لتسخينه، وكبّ الماء.", en: "Run a blank cycle into the cup to warm it, then tip it out." },
@@ -195,13 +238,17 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg; milk 0
+    caffeine: 65,
+    // calories: shot 2 + milk 180 ml x 0.64 (115.2) = 117.2
+    calories: 117,
     name: { ar: "لاتيه", en: "Latte" },
     blurb: {
       ar: "شوت واحد بحليب كثير ورغوة رفيعة — أنعم مشروبات الحليب.",
       en: "One shot under a lot of milk and a thin cap of foam — the gentlest milk drink."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب كامل الدسم", en: "Whole milk", amount: 180, unit: "ml" }
     ],
     steps: [
@@ -227,13 +274,17 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 5,
     baseYield: 180,
+    // caffeine: 1 shot x 65 mg; milk 0
+    caffeine: 65,
+    // calories: shot 2 + milk 120 ml x 0.64 (76.8) = 78.8; cocoa dust ~0
+    calories: 79,
     name: { ar: "كابتشينو", en: "Cappuccino" },
     blurb: {
       ar: "ثلاث طبقات متساوية: قهوة، حليب، رغوة كثيفة.",
       en: "Three equal layers: coffee, milk, and a thick cap of foam."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب سائل", en: "Steamed milk", amount: 60, unit: "ml" },
       { ar: "رغوة حليب", en: "Milk foam", amount: 60, unit: "ml" },
       { ar: "كاكاو للرش", en: "Cocoa to dust", amount: 1, unit: "pc", fixed: true }
@@ -260,13 +311,17 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 5,
     baseYield: 180,
+    // caffeine: 2 ristretto shots x 55 mg; milk 0
+    caffeine: 110,
+    // calories: 2 ristretto shots x 1 = 2 + milk 120 ml x 0.64 (76.8) = 78.8
+    calories: 79,
     name: { ar: "فلات وايت", en: "Flat White" },
     blurb: {
       ar: "شوتين بحليب مخملي ورغوة بالكاد موجودة — القهوة هي البطل.",
       en: "Two shots, velvety milk, barely any foam — the coffee stays in charge."
     },
     ingredients: [
-      { ar: "شوت ريستريتو", en: "Ristretto shot", amount: 2, unit: "shot" },
+      { ar: "شوت ريستريتو", en: "Ristretto shot", amount: 2, unit: "shot", mg: 55 },
       { ar: "حليب كامل الدسم", en: "Whole milk", amount: 120, unit: "ml" }
     ],
     steps: [
@@ -291,13 +346,17 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 4,
     baseYield: 70,
+    // caffeine: 1 shot x 65 mg; milk 0
+    caffeine: 65,
+    // calories: shot 2 + milk 35 ml x 0.64 (22.4) = 24.4
+    calories: 24,
     name: { ar: "كورتادو", en: "Cortado" },
     blurb: {
       ar: "نص قهوة نص حليب بكوب صغير — للي بحب القهوة تظل واضحة.",
       en: "Half coffee, half milk, in a small glass — for when you still want to taste coffee."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب دافي بدون رغوة تقريباً", en: "Warm milk, almost no foam", amount: 35, unit: "ml" }
     ],
     steps: [
@@ -320,13 +379,17 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 3,
     baseYield: 50,
+    // caffeine: 1 shot x 65 mg; milk 0
+    caffeine: 65,
+    // calories: shot 2 + foam 1 tbsp = 15 ml x 0.64 (9.6) = 11.6
+    calories: 12,
     name: { ar: "ماكياتو", en: "Macchiato" },
     blurb: {
       ar: "إسبريسو مع ملعقة رغوة فقط — \"ملطّخ\" بالحليب، لا أكثر.",
       en: "Espresso with one spoon of foam — 'stained' with milk, nothing more."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "رغوة حليب", en: "Milk foam", amount: 1, unit: "tbsp" }
     ],
     steps: [
@@ -349,6 +412,10 @@ const RECIPES = [
     style: ["hot", "milk", "dessert"],
     minutes: 6,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg; chocolate and milk 0
+    caffeine: 65,
+    // calories: dark chocolate 15 g x 5.5 (82.5) + milk 30 ml x 0.64 (19.2) + shot 2 + milk 150 ml x 0.64 (96) = 199.7
+    calories: 200,
     name: { ar: "موكا", en: "Mocha" },
     blurb: {
       ar: "لاتيه بشوكولاتة داكنة — الترتيب فيه بيفرق كتير.",
@@ -357,7 +424,7 @@ const RECIPES = [
     ingredients: [
       { ar: "شوكولاتة داكنة مبشورة", en: "Grated dark chocolate", amount: 15, unit: "g" },
       { ar: "حليب لإذابة الشوكولاتة", en: "Milk to melt the chocolate", amount: 30, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب مبخّر", en: "Steamed milk", amount: 150, unit: "ml" }
     ],
     steps: [
@@ -381,6 +448,10 @@ const RECIPES = [
     style: ["hot", "milk", "dessert"],
     minutes: 6,
     baseYield: 240,
+    // caffeine: 2 shots x 65 mg
+    caffeine: 130,
+    // calories: white chocolate 20 g x 5.4 (108) + milk 30 ml x 0.64 (19.2) + 2 shots x 2 (4) + milk 140 ml x 0.64 (89.6) = 220.8
+    calories: 221,
     name: { ar: "وايت موكا", en: "White Mocha" },
     blurb: {
       ar: "بشوكولاتة بيضا — أحلى بكثير، فبده شوت أقوى يوازنه.",
@@ -389,7 +460,7 @@ const RECIPES = [
     ingredients: [
       { ar: "شوكولاتة بيضا", en: "White chocolate", amount: 20, unit: "g" },
       { ar: "حليب للإذابة", en: "Milk to melt", amount: 30, unit: "ml" },
-      { ar: "شوت إسبريسو شدّة عالية", en: "High-intensity espresso shot", amount: 2, unit: "shot" },
+      { ar: "شوت إسبريسو شدّة عالية", en: "High-intensity espresso shot", amount: 2, unit: "shot", mg: 65 },
       { ar: "حليب مبخّر", en: "Steamed milk", amount: 140, unit: "ml" }
     ],
     steps: [
@@ -412,6 +483,10 @@ const RECIPES = [
     style: ["hot", "milk", "dessert"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: caramel 20 ml x 1 (20) + milk 160 ml x 0.64 (102.4) + shot 2 + drizzle 1 tsp = 5 ml x 1 (5) = 129.4
+    calories: 129,
     name: { ar: "كراميل ماكياتو", en: "Caramel Macchiato" },
     blurb: {
       ar: "مبني بالمقلوب — الشوت بينزل آخر شي، فبتشوف الطبقات.",
@@ -420,7 +495,7 @@ const RECIPES = [
     ingredients: [
       { ar: "صوص كراميل", en: "Caramel sauce", amount: 20, unit: "ml" },
       { ar: "حليب مبخّر", en: "Steamed milk", amount: 160, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "كراميل للزخرفة", en: "Caramel to drizzle", amount: 1, unit: "tsp", fixed: true }
     ],
     steps: [
@@ -444,6 +519,10 @@ const RECIPES = [
     style: ["hot", "milk", "dessert"],
     minutes: 3,
     baseYield: 60,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: condensed milk 20 ml x 3.21 (64.2) + shot 2 = 66.2
+    calories: 66,
     name: { ar: "كافيه بومبون", en: "Café Bombón" },
     blurb: {
       ar: "إسباني — طبقتين واضحتين من الحليب المكثف والإسبريسو.",
@@ -451,7 +530,7 @@ const RECIPES = [
     },
     ingredients: [
       { ar: "حليب مكثف محلّى", en: "Sweetened condensed milk", amount: 20, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" }
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "حط الحليب المكثف بقاع كوب زجاج صغير شفاف.", en: "Put the condensed milk in a small clear glass." },
@@ -473,6 +552,10 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: honey 1 tbsp (64) + cinnamon 0 + shot 2 + milk 170 ml x 0.64 (108.8) = 174.8
+    calories: 175,
     name: { ar: "كافيه مييل", en: "Café Miel" },
     blurb: {
       ar: "لاتيه بعسل وقرفة بدل السكر — حلاوة أعمق وأقل حدة.",
@@ -481,7 +564,7 @@ const RECIPES = [
     ingredients: [
       { ar: "عسل", en: "Honey", amount: 1, unit: "tbsp" },
       { ar: "قرفة مطحونة", en: "Ground cinnamon", amount: 0.5, unit: "tsp", fixed: true },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب مبخّر", en: "Steamed milk", amount: 170, unit: "ml" }
     ],
     steps: [
@@ -506,6 +589,10 @@ const RECIPES = [
     style: ["iced", "milk"],
     minutes: 4,
     baseYield: 300,
+    // caffeine: 2 shots x 65 mg; ice 0
+    caffeine: 130,
+    // calories: condensed milk 40 ml x 3.21 (128.4) + milk 120 ml x 0.64 (76.8) + ice 0 + 2 shots x 2 (4) = 209.2
+    calories: 209,
     name: { ar: "آيس سبانيش لاتيه", en: "Iced Spanish Latte" },
     blurb: {
       ar: "حليب مكثف بدل السكر — قوام كريمي ثقيل ما بيعطيه السكر العادي.",
@@ -515,7 +602,7 @@ const RECIPES = [
       { ar: "حليب مكثف محلّى", en: "Sweetened condensed milk", amount: 40, unit: "ml" },
       { ar: "حليب بارد كامل الدسم", en: "Cold whole milk", amount: 120, unit: "ml" },
       { ar: "ثلج", en: "Ice", amount: 6, unit: "pc" },
-      { ar: "شوت إسبريسو شدّة ١٠+", en: "Espresso shot, intensity 10+", amount: 2, unit: "shot" }
+      { ar: "شوت إسبريسو شدّة ١٠+", en: "Espresso shot, intensity 10+", amount: 2, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "حط الحليب المكثف بقاع الكوب.", en: "Put the condensed milk in the bottom of the glass." },
@@ -541,13 +628,17 @@ const RECIPES = [
     style: ["iced", "milk"],
     minutes: 3,
     baseYield: 280,
+    // caffeine: 1 shot x 65 mg; ice and milk 0
+    caffeine: 65,
+    // calories: shot 2 + ice 0 + milk 150 ml x 0.64 (96) = 98
+    calories: 98,
     name: { ar: "آيس لاتيه", en: "Iced Latte" },
     blurb: {
       ar: "أبسط مشروب بارد — والسر بتبريد الشوت قبل ما يخفف الثلج.",
       en: "The simplest cold drink — the trick is chilling the shot before ice dilutes it."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "ثلج", en: "Ice", amount: 6, unit: "pc" },
       { ar: "حليب بارد", en: "Cold milk", amount: 150, unit: "ml" }
     ],
@@ -571,6 +662,10 @@ const RECIPES = [
     style: ["iced"],
     minutes: 3,
     baseYield: 280,
+    // caffeine: 2 shots x 65 mg; water and ice 0
+    caffeine: 130,
+    // calories: 2 shots x 2 = 4
+    calories: 4,
     name: { ar: "آيس أمريكانو", en: "Iced Americano" },
     blurb: {
       ar: "منعش وصافي — بتشوف فيه طعم الكبسولة بدون تغطية.",
@@ -579,7 +674,7 @@ const RECIPES = [
     ingredients: [
       { ar: "ماء بارد", en: "Cold water", amount: 150, unit: "ml" },
       { ar: "ثلج", en: "Ice", amount: 6, unit: "pc" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 2, unit: "shot" }
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 2, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "املا الكوب ثلج وماء بارد.", en: "Fill the glass with ice and cold water." },
@@ -601,6 +696,10 @@ const RECIPES = [
     style: ["iced", "milk", "dessert"],
     minutes: 4,
     baseYield: 300,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: chocolate sauce 25 ml x 1 (25) + milk 140 ml x 0.64 (89.6) + ice 0 + shot 2 = 116.6
+    calories: 117,
     name: { ar: "آيس موكا", en: "Iced Mocha" },
     blurb: {
       ar: "شوكولاتة وحليب بارد وثلج — والصوص أسهل من الكاكاو هون.",
@@ -610,7 +709,7 @@ const RECIPES = [
       { ar: "صوص شوكولاتة", en: "Chocolate sauce", amount: 25, unit: "ml" },
       { ar: "حليب بارد", en: "Cold milk", amount: 140, unit: "ml" },
       { ar: "ثلج", en: "Ice", amount: 6, unit: "pc" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" }
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "حرّك الصوص مع الحليب البارد حتى يذوب تماماً.", en: "Stir the sauce into the cold milk until fully dissolved.", seconds: 30 },
@@ -632,6 +731,10 @@ const RECIPES = [
     style: ["iced", "milk", "dessert"],
     minutes: 4,
     baseYield: 300,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: caramel 20 ml x 1 (20) + milk 150 ml x 0.64 (96) + ice 0 + shot 2 + drizzle 1 tsp = 5 ml x 1 (5) = 123
+    calories: 123,
     name: { ar: "آيس كراميل ماكياتو", en: "Iced Caramel Macchiato" },
     blurb: {
       ar: "نفس فكرة الساخن — الشوت آخر شي، والطبقات بتبين أوضح بالبارد.",
@@ -641,7 +744,7 @@ const RECIPES = [
       { ar: "صوص كراميل", en: "Caramel sauce", amount: 20, unit: "ml" },
       { ar: "حليب بارد", en: "Cold milk", amount: 150, unit: "ml" },
       { ar: "ثلج", en: "Ice", amount: 6, unit: "pc" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "كراميل للزخرفة", en: "Caramel to drizzle", amount: 1, unit: "tsp", fixed: true }
     ],
     steps: [
@@ -665,6 +768,10 @@ const RECIPES = [
     style: ["iced"],
     minutes: 3,
     baseYield: 250,
+    // caffeine: 1 shot x 65 mg; tonic and citrus 0
+    caffeine: 65,
+    // calories: tonic 150 ml x 0.34 (51) + shot 2 + citrus 0 = 53
+    calories: 53,
     name: { ar: "إسبريسو تونيك", en: "Espresso Tonic" },
     blurb: {
       ar: "قهوة بماء التونيك — نكهة حمضيات فوارة غير متوقعة.",
@@ -673,7 +780,7 @@ const RECIPES = [
     ingredients: [
       { ar: "ثلج", en: "Ice", amount: 8, unit: "pc" },
       { ar: "ماء تونيك", en: "Tonic water", amount: 150, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "شريحة ليمون أو برتقال", en: "Slice of lemon or orange", amount: 1, unit: "pc", fixed: true }
     ],
     steps: [
@@ -699,13 +806,17 @@ const RECIPES = [
     style: ["iced"],
     minutes: 3,
     baseYield: 120,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: shot 2 + sugar 1 tsp (16) + ice 0 = 18
+    calories: 18,
     name: { ar: "شيكراتو", en: "Shakerato" },
     blurb: {
       ar: "إيطالي — إسبريسو مرجوج بالثلج، بيطلع برغوة كثيفة بدون حليب.",
       en: "Italian — espresso shaken with ice, producing a thick foam with no milk at all."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "سكر أو شراب سكري", en: "Sugar or simple syrup", amount: 1, unit: "tsp" },
       { ar: "ثلج", en: "Ice", amount: 5, unit: "pc" }
     ],
@@ -730,13 +841,17 @@ const RECIPES = [
     style: ["iced", "milk"],
     minutes: 4,
     baseYield: 300,
+    // caffeine: 2 shots x 65 mg
+    caffeine: 130,
+    // calories: 2 shots x 2 (4) + vanilla syrup 15 ml x 1 (15) + ice 0 + milk 60 ml x 0.64 (38.4) = 57.4
+    calories: 57,
     name: { ar: "آيس شيكن إسبريسو", en: "Iced Shaken Espresso" },
     blurb: {
       ar: "شيكراتو بالفانيلا مع رشّة حليب فوق — نسخة المقاهي.",
       en: "A vanilla shakerato with a splash of milk on top — the coffee-shop version."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 2, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 2, unit: "shot", mg: 65 },
       { ar: "شراب فانيلا", en: "Vanilla syrup", amount: 15, unit: "ml" },
       { ar: "ثلج", en: "Ice", amount: 8, unit: "pc" },
       { ar: "حليب بارد", en: "Cold milk", amount: 60, unit: "ml" }
@@ -762,6 +877,10 @@ const RECIPES = [
     style: ["dessert", "iced"],
     minutes: 2,
     baseYield: 120,
+    // caffeine: 1 shot x 65 mg
+    caffeine: 65,
+    // calories: ice cream 1 scoop (140) + shot 2 = 142
+    calories: 142,
     name: { ar: "أفوجاتو", en: "Affogato" },
     blurb: {
       ar: "آيس كريم فانيلا مغرّق بشوت ساخن — أسهل ديزرت بالعالم.",
@@ -769,7 +888,7 @@ const RECIPES = [
     },
     ingredients: [
       { ar: "آيس كريم فانيلا", en: "Vanilla ice cream", amount: 1, unit: "scoop" },
-      { ar: "شوت إسبريسو ساخن", en: "Hot espresso shot", amount: 1, unit: "shot" }
+      { ar: "شوت إسبريسو ساخن", en: "Hot espresso shot", amount: 1, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "حط كرة آيس كريم بكوب زجاج صغير.", en: "Put a scoop of ice cream in a small glass." },
@@ -791,13 +910,17 @@ const RECIPES = [
     style: ["iced", "milk", "dessert"],
     minutes: 4,
     baseYield: 350,
+    // caffeine: 2 shots x 65 mg
+    caffeine: 130,
+    // calories: 2 shots x 2 (4) + milk 150 ml x 0.64 (96) + sugar 1 tbsp = 3 tsp x 16 (48) + ice 0 = 148
+    calories: 148,
     name: { ar: "فرابيه قهوة", en: "Coffee Frappé" },
     blurb: {
       ar: "مخفوق بالخلاط — قوام ثلجي كريمي بدون آيس كريم.",
       en: "Blended — an icy, creamy texture with no ice cream involved."
     },
     ingredients: [
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 2, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 2, unit: "shot", mg: 65 },
       { ar: "حليب بارد", en: "Cold milk", amount: 150, unit: "ml" },
       { ar: "سكر أو شراب", en: "Sugar or syrup", amount: 1, unit: "tbsp" },
       { ar: "ثلج", en: "Ice", amount: 10, unit: "pc" }
@@ -825,6 +948,10 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 6,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg; cardamom 0
+    caffeine: 65,
+    // calories: cardamom 0 + milk 180 ml x 0.64 (115.2) + shot 2 = 117.2
+    calories: 117,
     name: { ar: "لاتيه بالهيل", en: "Cardamom Latte" },
     blurb: {
       ar: "مزيج عربي-إيطالي — الهيل بينقّع بالحليب مش بينرش فوق.",
@@ -833,7 +960,7 @@ const RECIPES = [
     ingredients: [
       { ar: "حبة هيل أخضر مهروسة", en: "Green cardamom pod, crushed", amount: 1, unit: "pc", fixed: true },
       { ar: "حليب", en: "Milk", amount: 180, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" }
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 }
     ],
     steps: [
       { ar: "اهرس حبة الهيل وحطها بالحليب البارد.", en: "Crush the pod and drop it into the cold milk." },
@@ -857,6 +984,10 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg; rose water and syrup 0 mg
+    caffeine: 65,
+    // calories: rose water 0 + rose syrup 10 ml x 1 (10) + shot 2 + milk 170 ml x 0.64 (108.8) + petals 0 = 120.8
+    calories: 121,
     name: { ar: "لاتيه بالورد", en: "Rose Latte" },
     blurb: {
       ar: "ماء ورد وقطرات شراب — عطري وخفيف، شائع بمقاهي الخليج.",
@@ -865,7 +996,7 @@ const RECIPES = [
     ingredients: [
       { ar: "ماء ورد", en: "Rose water", amount: 5, unit: "ml" },
       { ar: "شراب ورد أو سكر", en: "Rose syrup or sugar", amount: 10, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب مبخّر", en: "Steamed milk", amount: 170, unit: "ml" },
       { ar: "بتلات ورد مجففة", en: "Dried rose petals", amount: 1, unit: "pc", fixed: true }
     ],
@@ -889,6 +1020,10 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 15,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg; saffron 0
+    caffeine: 65,
+    // calories: saffron 0 + milk 20 ml x 0.64 (12.8) + honey 1 tsp = 64/3 (21.3) + shot 2 + milk 160 ml x 0.64 (102.4) = 138.5
+    calories: 139,
     name: { ar: "لاتيه بالزعفران", en: "Saffron Latte" },
     blurb: {
       ar: "الزعفران بده نقع — ١٠ دقائق بتفرق عن الرشّ المباشر.",
@@ -898,7 +1033,7 @@ const RECIPES = [
       { ar: "خيوط زعفران", en: "Saffron threads", amount: 3, unit: "pc", fixed: true },
       { ar: "حليب دافي للنقع", en: "Warm milk to steep", amount: 20, unit: "ml" },
       { ar: "عسل", en: "Honey", amount: 1, unit: "tsp" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "حليب مبخّر", en: "Steamed milk", amount: 160, unit: "ml" }
     ],
     steps: [
@@ -922,6 +1057,10 @@ const RECIPES = [
     style: ["hot", "milk", "dessert"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 1 shot x 65 mg; pistachio 0
+    caffeine: 65,
+    // calories: pistachio paste 15 g x 6 (90) + milk 170 ml x 0.64 (108.8) + shot 2 + crushed pistachio 1 tsp ~ 3 g x 6 (18) = 218.8
+    calories: 219,
     name: { ar: "لاتيه بالفستق", en: "Pistachio Latte" },
     blurb: {
       ar: "معجون فستق مذوّب بالحليب — غني وكريمي.",
@@ -930,7 +1069,7 @@ const RECIPES = [
     ingredients: [
       { ar: "معجون فستق", en: "Pistachio paste", amount: 15, unit: "g" },
       { ar: "حليب", en: "Milk", amount: 170, unit: "ml" },
-      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot" },
+      { ar: "شوت إسبريسو", en: "Espresso shot", amount: 1, unit: "shot", mg: 65 },
       { ar: "فستق مجروش", en: "Crushed pistachio", amount: 1, unit: "tsp", fixed: true }
     ],
     steps: [
@@ -955,6 +1094,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 15 g grounds = 130 mg (filter reference)
+    caffeine: 130,
+    // calories: filter coffee 240 ml x 0.02 = 4.8
+    calories: 5,
     name: { ar: "بور أوفر ١:١٦", en: "Pour-over 1:16" },
     blurb: {
       ar: "النسبة القياسية — ١ غرام بن لكل ١٦ غرام ماء.",
@@ -988,6 +1131,10 @@ const RECIPES = [
     style: ["hot", "milk"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 120 ml brewed at 1:13 = 9.2 g grounds x 8.67 mg/g = 80 mg
+    caffeine: 80,
+    // calories: coffee 120 ml x 0.02 (2.4) + milk 120 ml x 0.64 (76.8) = 79.2
+    calories: 79,
     name: { ar: "كافيه أو ليه", en: "Café au Lait" },
     blurb: {
       ar: "قهوة فلتر وحليب نص بنص — أخف وألطف من اللاتيه.",
@@ -1017,6 +1164,10 @@ const RECIPES = [
     style: ["iced"],
     minutes: 5,
     baseYield: 300,
+    // caffeine: 20 g grounds x 8.67 mg/g (130 mg per 15 g) = 173 mg; ice 0
+    caffeine: 173,
+    // calories: brewed 160 ml x 0.02 (3.2) + ice 0 = 3.2
+    calories: 3,
     name: { ar: "آيس كوفي (الصبّ على الثلج)", en: "Iced Coffee (Japanese style)" },
     blurb: {
       ar: "تحضّرها بتركيز مضاعف وتصبّها على ثلج — بتحفظ النكهات العطرية.",
@@ -1048,6 +1199,10 @@ const RECIPES = [
     style: ["iced"],
     minutes: 10,
     baseYield: 700,
+    // caffeine: 80 g grounds -> 700 ml concentrate at 100 mg/100 ml = 700 mg; served 1:1, so 700 ml of drink carries half = 350 mg (50 mg per 100 ml as served)
+    caffeine: 350,
+    // calories: 700 ml of drink at roughly filter strength x 0.02 = 14
+    calories: 14,
     name: { ar: "كولد برو", en: "Cold Brew" },
     blurb: {
       ar: "نقع بارد ١٤ ساعة — حلو وناعم وقليل الحموضة. بتضل ١٠ أيام.",
@@ -1080,6 +1235,10 @@ const RECIPES = [
     style: ["hot", "milk", "dessert"],
     minutes: 6,
     baseYield: 280,
+    // caffeine: 200 ml strong filter (1:13) = 15.4 g grounds x 8.67 mg/g = 133 mg; cocoa not in the reference table, counted as 0
+    caffeine: 133,
+    // calories: coffee 200 ml x 0.02 (4) + cocoa 2 tsp ~ 5 g x 5.5 (27.5, costed as dark chocolate) + sugar 1 tsp (16) + milk 50 ml x 0.64 (32) = 79.5
+    calories: 80,
     name: { ar: "موكا بالفلتر", en: "Filter Mocha" },
     blurb: {
       ar: "نسخة أخف من موكا الإسبريسو — بتناسب اللي ما بحب التركيز.",
@@ -1111,6 +1270,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 5,
     baseYield: 240,
+    // caffeine: 15 g grounds = 130 mg; spices 0
+    caffeine: 130,
+    // calories: filter coffee 240 ml x 0.02 = 4.8; spices 0
+    calories: 5,
     name: { ar: "قهوة فلتر بالقرفة والهيل", en: "Spiced Filter Coffee" },
     blurb: {
       ar: "البهارات بتنحط مع البن الجاف — النكهة بتتسرّب أثناء الاستخلاص.",
@@ -1144,6 +1307,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 6,
     baseYield: 70,
+    // caffeine: 7 g grounds in a 70 ml cup = 65 mg
+    caffeine: 65,
+    // calories: coffee 70 ml x 0.02 (1.4) + sugar 1 tsp (16) = 17.4
+    calories: 17,
     name: { ar: "قهوة تركية", en: "Classic Turkish" },
     blurb: {
       ar: "البداية من ماء بارد، والرغوة بتنرفع ثلاث مرات — وما بتغلي أبداً.",
@@ -1179,6 +1346,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 6,
     baseYield: 70,
+    // caffeine: 7 g grounds = 65 mg; cardamom 0
+    caffeine: 65,
+    // calories: coffee 70 ml x 0.02 (1.4) + cardamom 0 + sugar 1 tsp (16) = 17.4
+    calories: 17,
     name: { ar: "تركية بالهيل", en: "Turkish with Cardamom" },
     blurb: {
       ar: "حبة هيل مهروسة من البداية — النكهة الأشهر بالمنطقة.",
@@ -1211,6 +1382,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 6,
     baseYield: 70,
+    // caffeine: 7 g grounds = 65 mg; mastic 0
+    caffeine: 65,
+    // calories: coffee 70 ml x 0.02 = 1.4; mastic 0
+    calories: 1,
     name: { ar: "تركية بالمستكة", en: "Turkish with Mastic" },
     blurb: {
       ar: "نكهة صنوبرية مميزة — شائعة بالشام، والكمية بتفرق كتير.",
@@ -1241,6 +1416,10 @@ const RECIPES = [
     style: ["hot", "dessert"],
     minutes: 6,
     baseYield: 70,
+    // caffeine: 7 g grounds = 65 mg; cocoa counted as 0
+    caffeine: 65,
+    // calories: coffee 70 ml x 0.02 (1.4) + cocoa 1 tsp ~ 2.5 g x 5.5 (13.75, costed as dark chocolate) + sugar 1 tsp (16) = 31.2
+    calories: 31,
     name: { ar: "موكا تركي", en: "Turkish Mocha" },
     blurb: {
       ar: "كاكاو مع البن من البداية — غني وكثيف جداً.",
@@ -1272,6 +1451,10 @@ const RECIPES = [
     style: ["hot"],
     minutes: 6,
     baseYield: 70,
+    // caffeine: 7 g grounds = 65 mg; orange peel 0
+    caffeine: 65,
+    // calories: coffee 70 ml x 0.02 (1.4) + peel 0 + sugar 1 tsp (16) = 17.4
+    calories: 17,
     name: { ar: "تركية بقشر البرتقال", en: "Orange-peel Turkish" },
     blurb: {
       ar: "قشرة برتقال صغيرة بالكنكة — زيوتها بتتزاوج مع التحميص الغامق.",
@@ -1349,4 +1532,29 @@ function scaleAmount(ingredient, factor) {
 
 const CUP_SIZES = [120, 180, 240, 350, 470];
 
-export { RECIPES, EQUIPMENT, STYLES, UNITS, CUP_SIZES, scaleAmount };
+/* Nutrition at a given cup size --------------------------------------- */
+
+/* Caffeine from counted shots steps with the shot count; anything else in
+   the record (brewed coffee measured by weight or volume) scales with the
+   cup, as calories do. Figures are rounded for display only — caffeine to
+   the nearest 5 mg, calories to the nearest 5 kcal, never down to zero for
+   a drink that carries some. */
+function scaleNutrition(recipe, factor) {
+  let shotBase = 0, shotScaled = 0;
+  for (const ing of recipe.ingredients) {
+    if (!ing.mg) continue;
+    shotBase += ing.mg * ing.amount;
+    shotScaled += ing.mg * scaleAmount(ing, factor);
+  }
+  const rest = Math.max(0, (recipe.caffeine || 0) - shotBase);
+  const caffeine = shotScaled + rest * factor;
+  const calories = (recipe.calories || 0) * factor;
+  return { caffeine: round5(caffeine), calories: round5(calories) };
+}
+
+function round5(n) {
+  if (n <= 0) return 0;
+  return Math.max(5, Math.round(n / 5) * 5);
+}
+
+export { RECIPES, EQUIPMENT, STYLES, UNITS, CUP_SIZES, scaleAmount, scaleNutrition };

@@ -184,8 +184,25 @@ a { color: inherit; }
 
 /* ---------- Main ---------- */
 main { max-width: 1180px; margin-inline: auto; padding-block: 18px 110px; padding-inline: 16px; }
-#count { margin: 0 0 6px; color: var(--ink-2); font-size: .92rem; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+#count { margin: 0; color: var(--ink-2); font-size: .92rem; }
 #count strong { color: var(--ink); font-weight: 600; }
+.sorter { position: relative; display: flex; align-items: center; gap: 8px; }
+.sorter label { flex: none; font-size: .85rem; color: var(--ink-2); }
+.sorter select {
+  appearance: none; -webkit-appearance: none;
+  min-height: var(--tap); padding-inline: 14px 38px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); cursor: pointer;
+  font-size: .92rem; font-weight: 500;
+}
+.sorter select:hover { border-color: var(--line-strong); }
+.sorter::after {
+  content: ""; position: absolute; inset-inline-end: 16px; inset-block-start: 50%;
+  width: 8px; height: 8px; pointer-events: none;
+  /* physical sides on purpose: the chevron must point down in both directions */
+  border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2);
+  transform: translateY(-70%) rotate(45deg);
+}
 
 .group { margin-block-start: 22px; }
 .banner {
@@ -220,7 +237,7 @@ main { max-width: 1180px; margin-inline: auto; padding-block: 18px 110px; paddin
 .c-bottom { position: absolute; z-index: 1; inset-inline: 0; inset-block-end: 0; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
 .c-name { font-size: 1.3rem; font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
 .c-blurb { font-size: .9rem; line-height: 1.45; color: rgba(255,255,255,.84); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.c-meta { display: flex; gap: 6px; margin-block-start: 6px; }
+.c-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 6px; }
 .glass {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .76rem; line-height: 1; font-weight: 500;
@@ -231,6 +248,7 @@ main { max-width: 1180px; margin-inline: auto; padding-block: 18px 110px; paddin
 }
 .glass svg { width: 13px; height: 13px; }
 .glass.time { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
+.glass .u { color: rgba(255,255,255,.72); margin-inline-start: 4px; }
 
 .heart {
   position: absolute; z-index: 2; inset-block-start: 8px; inset-inline-end: 8px;
@@ -337,6 +355,21 @@ dialog.recipe::backdrop { background: var(--shade); -webkit-backdrop-filter: blu
 .cup[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .cup[aria-pressed="true"] small { color: var(--bg); opacity: .75; }
 
+/* Nutrition read-out under the cup control */
+.nutri { margin-block-start: 12px; }
+.n-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
+}
+.n-cell { padding: 10px 14px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.n-cell + .n-cell { border-inline-start: 1px solid var(--line); }
+.n-key { font-size: .76rem; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.n-fig { display: flex; align-items: baseline; gap: 5px; }
+.n-fig .num { font-size: 1.5rem; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
+.n-fig small { font-size: .8rem; color: var(--ink-2); }
+.n-share { margin: 8px 2px 0; font-size: .82rem; color: var(--ink-2); }
+.r-note { margin: 20px 2px 0; font-size: .76rem; line-height: 1.5; color: var(--ink-2); }
+
 .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: start; vertical-align: top; padding: 11px 4px; border-block-end: 1px solid var(--line); }
@@ -424,7 +457,13 @@ thead th { font-size: .78rem; font-weight: 500; color: var(--ink-2); }
 </section>
 
 <main id="main">
-  <p id="count" aria-live="polite" aria-atomic="true"></p>
+  <div class="toolbar">
+    <p id="count" aria-live="polite" aria-atomic="true"></p>
+    <div class="sorter">
+      <label for="sort" data-i18n="sortBy"></label>
+      <select id="sort"></select>
+    </div>
+  </div>
   <div id="groups"></div>
   <div id="emptyBox" hidden></div>
 </main>
@@ -441,7 +480,7 @@ thead th { font-size: .78rem; font-weight: 500; color: var(--ink-2); }
 /* Recipe data, filter metadata, units and scaling live in recipes.js.
    Edit recipes there; this file only builds the UI around them.
    Photos: img/<recipe id>.webp (missing files fall back to a plain tile). */
-import { RECIPES, EQUIPMENT, STYLES, UNITS, CUP_SIZES, scaleAmount } from "./recipes.js";
+import { RECIPES, EQUIPMENT, STYLES, UNITS, CUP_SIZES, scaleAmount, scaleNutrition } from "./recipes.js";
 
 /* =====================================================================
    UI strings
@@ -455,6 +494,11 @@ const UI = {
     switchLang: "EN", switchLangAria: "Switch to English",
     toDarkAria: "التبديل إلى الوضع الداكن", toLightAria: "التبديل إلى الوضع الفاتح",
     equipment: "الأداة", style: "النوع", all: "الكل", favOnly: "المفضلة", filtersNav: "الفلاتر",
+    decaf: "كافيين منخفض", decafAria: "كافيين منخفض: 70 ملغ أو أقل للكوب",
+    sortBy: "ترتيب حسب", sortName: "الاسم", sortCaffeine: "الكافيين: الأقل أولاً", sortCalories: "السعرات: الأقل أولاً",
+    caffeine: "الكافيين", calories: "السعرات الحرارية", mg: "ملغ", kcal: "سعرة",
+    dailyShare: "{pct}% من حد 400 ملغ اليومي",
+    guideline: "400 ملغ يومياً — إرشادات EFSA وFDA للبالغين الأصحاء.",
     count: "{n} من {total} مشروب",
     drinksN: "{n} مشروب",
     emptyTitle: "لا توجد مشروبات تطابق هذه الفلاتر.",
@@ -483,6 +527,11 @@ const UI = {
     switchLang: "ع", switchLangAria: "التبديل إلى العربية",
     toDarkAria: "Switch to dark theme", toLightAria: "Switch to light theme",
     equipment: "Gear", style: "Style", all: "All", favOnly: "Favorites", filtersNav: "Filters",
+    decaf: "Decaf-friendly", decafAria: "Decaf-friendly: 70 mg or less per cup",
+    sortBy: "Sort by", sortName: "Name", sortCaffeine: "Caffeine, lowest first", sortCalories: "Calories, lowest first",
+    caffeine: "Caffeine", calories: "Calories", mg: "mg", kcal: "kcal",
+    dailyShare: "{pct}% of a 400 mg daily limit",
+    guideline: "400 mg/day — EFSA and FDA guidance for healthy adults.",
     count: "{n} of {total} drinks",
     drinksN: "{n} drinks",
     emptyTitle: "No drinks match these filters.",
@@ -506,6 +555,15 @@ const UI = {
 };
 const EQUIP = Object.fromEntries(EQUIPMENT.map(e => [e.id, e]));
 const STYLE = Object.fromEntries(STYLES.map(st => [st.id, st]));
+
+/* Caffeine at or under this many mg per serving counts as decaf-friendly. */
+const DECAF_MAX = 70;
+const DAILY_LIMIT = 400;
+const SORTS = [
+  { id: "name",     label: "sortName" },
+  { id: "caffeine", label: "sortCaffeine" },
+  { id: "calories", label: "sortCalories" }
+];
 
 const ICONS = {
   heart: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path class="fill" d="M12 20.5s-7.5-4.6-9.2-9.3C1.7 8 3.8 4.5 7.3 4.5c2 0 3.6 1.1 4.7 2.7 1.1-1.6 2.7-2.7 4.7-2.7 3.5 0 5.6 3.5 4.5 6.7-1.7 4.7-9.2 9.3-9.2 9.3z"/></svg>',
@@ -547,6 +605,8 @@ const state = {
   equip: new Set(),
   style: new Set(),
   favOnly: false,
+  decaf: false,
+  sort: (() => { const v = store.get("brew.sort", "name"); return SORTS.some(o => o.id === v) ? v : "name"; })(),
   q: "",
   favs: (() => {
     const f = store.get("brew.favs", []);
@@ -594,6 +654,17 @@ function fmtClock(ms) {
 function timeLabel(minutes) {
   if (minutes >= 60) return (Math.round(minutes / 60 * 10) / 10) + " " + t("hr");
   return minutes + " " + t("min");
+}
+/* Both figures are reference values beside the recipe, so they read quietly:
+   caffeine to the nearest 5 mg, calories to the nearest 5 kcal. */
+function nutritionFor(r, ml) {
+  return scaleNutrition(r, (ml || r.baseYield) / r.baseYield);
+}
+function nutriPills(r) {
+  const n = nutritionFor(r, r.baseYield);
+  const pill = (key, value, unit) =>
+    `<span class="glass"><span class="sr-only">${esc(t(key))}: </span><span class="num">${value}</span><span class="u">${esc(t(unit))}</span></span>`;
+  return pill("caffeine", n.caffeine, "mg") + pill("calories", n.calories, "kcal");
 }
 function heartBtn(r) {
   const on = state.favs.has(r.id);
@@ -645,8 +716,27 @@ function renderFilters() {
       <span class="flabel" id="fl-st">${esc(t("style"))}</span>
       ${chip("style", "all", t("all"))}${st}
       <span class="fsep" aria-hidden="true"></span>
+      <button type="button" class="chip" data-action="decaf" aria-pressed="${state.decaf}" aria-label="${esc(t("decafAria"))}"><span>${esc(t("decaf"))}</span></button>
       <button type="button" class="chip fav-chip" data-action="favonly" aria-pressed="${state.favOnly}">${ICONS.heart}<span>${esc(t("favOnly"))}</span></button>
     </div>`;
+}
+
+/* =====================================================================
+   Sorting
+   ===================================================================== */
+function renderSort() {
+  const sel = $("#sort");
+  sel.innerHTML = SORTS.map(o =>
+    `<option value="${o.id}"${o.id === state.sort ? " selected" : ""}>${esc(t(o.label))}</option>`).join("");
+  sel.value = state.sort;
+}
+function sorted(list) {
+  const byName = (a, b) => L(a.name).localeCompare(L(b.name), state.lang);
+  const copy = list.slice();
+  if (state.sort === "caffeine") copy.sort((a, b) => a.caffeine - b.caffeine || byName(a, b));
+  else if (state.sort === "calories") copy.sort((a, b) => a.calories - b.calories || byName(a, b));
+  else copy.sort(byName);
+  return copy;
 }
 
 /* =====================================================================
@@ -660,12 +750,13 @@ function matchesQuery(r) {
   return [r.name.ar, r.name.en, r.blurb.ar, r.blurb.en, r.id].some(s => norm(s).includes(q));
 }
 function filtered() {
-  return RECIPES.filter(r =>
+  return sorted(RECIPES.filter(r =>
     (state.equip.size === 0 || state.equip.has(r.equipment)) &&
     (state.style.size === 0 || r.style.some(s => state.style.has(s))) &&
+    (!state.decaf || r.caffeine <= DECAF_MAX) &&
     (!state.favOnly || state.favs.has(r.id)) &&
     matchesQuery(r)
-  );
+  ));
 }
 function cardHTML(r) {
   return `<li class="card">
@@ -675,7 +766,7 @@ function cardHTML(r) {
       <span class="c-bottom">
         <span class="c-name">${esc(L(r.name))}</span>
         <span class="c-blurb">${esc(L(r.blurb))}</span>
-        <span class="c-meta"><span class="glass time">${ICONS.clock}<span class="sr-only">${esc(t("totalTime"))}: </span><span class="num">${esc(timeLabel(r.minutes))}</span></span></span>
+        <span class="c-meta"><span class="glass time">${ICONS.clock}<span class="sr-only">${esc(t("totalTime"))}: </span><span class="num">${esc(timeLabel(r.minutes))}</span></span>${nutriPills(r)}</span>
       </span>
     </button>
     ${heartBtn(r)}
@@ -702,6 +793,7 @@ function renderEmpty(show) {
   if (state.q.trim()) clears.push(`<button type="button" class="btn" data-action="clear" data-group="q">${ICONS.close}${esc(t("search"))}: ${esc(state.q.trim())}</button>`);
   if (state.equip.size) clears.push(`<button type="button" class="btn" data-action="clear" data-group="equip">${ICONS.close}${esc(t("equipment"))}: ${esc([...state.equip].map(k => L(EQUIP[k])).join(" / "))}</button>`);
   if (state.style.size) clears.push(`<button type="button" class="btn" data-action="clear" data-group="style">${ICONS.close}${esc(t("style"))}: ${esc([...state.style].map(k => L(STYLE[k])).join(" / "))}</button>`);
+  if (state.decaf) clears.push(`<button type="button" class="btn" data-action="clear" data-group="decaf">${ICONS.close}${esc(t("decaf"))}</button>`);
   if (state.favOnly) clears.push(`<button type="button" class="btn" data-action="clear" data-group="fav">${ICONS.close}${esc(t("favOnly"))}</button>`);
   box.className = "empty";
   box.innerHTML = `${img("beans", 1600, 900)}<div><h2>${esc(t("emptyTitle"))}</h2>
@@ -724,6 +816,15 @@ function renderCups(r) {
     return `<button type="button" class="cup" data-action="cup" data-ml="${ml}" aria-pressed="${ml === cur}" aria-label="${ml} ${esc(t("ml"))}${isBase ? " (" + esc(t("original")) + ")" : ""}">
       <span class="num">${ml}</span><small>${esc(isBase ? t("original") : t("ml"))}</small></button>`;
   }).join("");
+}
+function renderNutrition(r) {
+  const n = nutritionFor(r, cupFor(r));
+  const pct = Math.round(n.caffeine / DAILY_LIMIT * 100);
+  const cell = (key, value, unit) =>
+    `<div class="n-cell"><span class="n-key">${esc(t(key))}</span>
+      <span class="n-fig"><span class="num">${value}</span><small>${esc(t(unit))}</small></span></div>`;
+  return `<div class="n-grid">${cell("caffeine", n.caffeine, "mg")}${cell("calories", n.calories, "kcal")}</div>
+    <p class="n-share">${esc(t("dailyShare", { pct }))}</p>`;
 }
 function renderIngredients(r) {
   const factor = cupFor(r) / r.baseYield;
@@ -782,6 +883,7 @@ function renderRecipe() {
         <section class="panel" aria-labelledby="h-cup">
           <h3 id="h-cup">${esc(t("cupSize"))}</h3>
           <div class="cups" role="group" aria-labelledby="h-cup" id="cups">${renderCups(r)}</div>
+          <div class="nutri" id="nutri" aria-live="polite">${renderNutrition(r)}</div>
         </section>
         <section class="panel" aria-labelledby="h-ing">
           <h3 id="h-ing">${esc(t("ingredients"))} <span class="aside" id="ingFor">${esc(t("scaledFor", { ml: cupFor(r) }))}</span></h3>
@@ -805,6 +907,7 @@ function renderRecipe() {
             <tbody>${fixes}</tbody>
           </table></div>
         </section>
+        <p class="r-note">${esc(t("guideline"))}</p>
       </div>
     </div>`;
   r.steps.forEach((s, i) => { if (s.seconds) paintTimer(r.id + ":" + i); });
@@ -813,6 +916,7 @@ function updateScale() {
   const r = byId.get(state.openId);
   if (!r) return;
   $("#cups").querySelectorAll(".cup").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.ml) === cupFor(r))));
+  $("#nutri").innerHTML = renderNutrition(r);
   $("#ingBody").innerHTML = renderIngredients(r);
   $("#ingFor").textContent = t("scaledFor", { ml: cupFor(r) });
 }
@@ -999,6 +1103,7 @@ document.addEventListener("click", e => {
   else if (a === "fav") toggleFav(el.dataset.id, el);
   else if (a === "filter") setFilter(el.dataset.group, el.dataset.value);
   else if (a === "favonly") { state.favOnly = !state.favOnly; renderFilters(); renderGrid(); focusSame('[data-action="favonly"]'); }
+  else if (a === "decaf") { state.decaf = !state.decaf; renderFilters(); renderGrid(); focusSame('[data-action="decaf"]'); }
   else if (a === "clear") clearFilter(el.dataset.group);
   else if (a === "cup") { state.cups.set(state.openId, Number(el.dataset.ml)); updateScale(); }
   else if (a === "t-toggle") { const k = el.dataset.key; timers.get(k).running ? pauseTimer(k) : startTimer(k); }
@@ -1011,6 +1116,11 @@ $("#miniBtn").addEventListener("click", () => {
   openRecipe(key.split(":")[0], $("#miniBtn"), key);
 });
 $("#q").addEventListener("input", e => { state.q = e.target.value; renderGrid(); });
+$("#sort").addEventListener("change", e => {
+  state.sort = SORTS.some(o => o.id === e.target.value) ? e.target.value : "name";
+  store.set("brew.sort", state.sort);
+  renderGrid();
+});
 $("#langBtn").addEventListener("click", () => {
   state.lang = state.lang === "ar" ? "en" : "ar";
   store.set("brew.lang", state.lang);
@@ -1047,6 +1157,7 @@ function setFilter(group, value) {
 function clearFilter(group) {
   if (group === "equip" || group === "all") state.equip.clear();
   if (group === "style" || group === "all") state.style.clear();
+  if (group === "decaf" || group === "all") state.decaf = false;
   if (group === "fav" || group === "all") state.favOnly = false;
   if (group === "q" || group === "all") { state.q = ""; $("#q").value = ""; }
   renderFilters();
@@ -1073,6 +1184,7 @@ function applyLang() {
   html.dir = state.lang === "ar" ? "rtl" : "ltr";
   renderHeader();
   renderFilters();
+  renderSort();
   renderGrid();
   if (dialog.open) renderRecipe();
   updateMini();
